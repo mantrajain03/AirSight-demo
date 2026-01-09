@@ -27,5 +27,7 @@ The system produces interpretable numeric scores (0-100) and visual maps without
 1. Install dependencies: `pip install -r requirements.txt`
 2. Test installation: `python test_installation.py`
 3. Launch web interface: `streamlit run app.py`
+4. After the web interface is up and running, upload the sample image in \Sample Image\ directory to test the project.
+5. Alternatively, you may upload any image and use the project to analyze it.
 
 For detailed documentation, see the full README.md file.
