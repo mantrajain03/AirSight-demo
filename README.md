@@ -17,10 +17,32 @@ The system produces interpretable numeric scores (0-100) and visual maps without
 
 ✅ **Domain-Agnostic** — Works on any image or video, independent of content  
 ✅ **Sensor-Free** — No external sensors required  
+✅ **Image-Based AQI Estimation** — Estimates Air Quality Index purely from image analysis  
+✅ **Confidence Scoring** — Provides confidence scores and reliability flags for AQI estimates  
 ✅ **Explainable** — Fully interpretable feature extraction and scoring  
 ✅ **Classical Methods** — Based on proven digital image processing techniques  
 ✅ **Modular Design** — Clean, extensible architecture  
 ✅ **Hackathon-Ready** — Quick setup and demo-friendly interface
+
+## AQI Estimation
+
+The system estimates Air Quality Index (AQI) using comprehensive feature engineering:
+
+**Baseline Features:**
+- **Contrast Analysis** — Histogram spread, entropy, dynamic range
+- **Edge Density** — Sobel and Canny edge detection
+- **HSV Histograms** — Hue, Saturation, Value channel analysis
+- **Dark Channel Prior** — Haze density estimation
+- **Visibility Index** — Combined visibility score
+
+**Output Format:**
+- **Estimated AQI** (0-500) with standard categories
+- **Confidence Score** (0-1) based on feature consistency
+- **Reliability Flag** indicating if estimation is reliable
+- **Quality Warnings** for night images, fog, indoor scenes, etc.
+
+**Important Disclaimer:**
+This is a visual estimation only and does not replace certified AQI sensors. Not intended for legal or medical use.
 
 ## Quick Start
 

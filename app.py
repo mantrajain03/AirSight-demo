@@ -251,6 +251,18 @@ if input_type == "Image":
             
             # Create AQI card with dynamic color
             aqi_color = aqi_info['color']
+            confidence_score = aqi_info.get('confidence_score', 0.8)
+            reliability_flag = aqi_info.get('reliability_flag', True)
+            reliability_score = aqi_info.get('reliability_score', 1.0)
+            
+            # Confidence indicator
+            confidence_color = "#10b981" if confidence_score > 0.7 else "#f59e0b" if confidence_score > 0.5 else "#ef4444"
+            confidence_label = "High" if confidence_score > 0.7 else "Medium" if confidence_score > 0.5 else "Low"
+            
+            # Reliability indicator
+            reliability_icon = "✅" if reliability_flag else "⚠️"
+            reliability_text = "Reliable" if reliability_flag else "Low Reliability"
+            
             aqi_html = f"""
             <div class="aqi-card" style="border-color: {aqi_color};">
                 <div class="aqi-value" style="color: {aqi_color};">
@@ -259,12 +271,58 @@ if input_type == "Image":
                 <div class="aqi-category" style="color: {aqi_color};">
                     {aqi_info['category']}
                 </div>
+                <div style="margin: 1rem 0; padding: 0.75rem; background: rgba(255,255,255,0.7); border-radius: 0.5rem;">
+                    <div style="display: flex; justify-content: space-around; align-items: center;">
+                        <div>
+                            <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.25rem;">Confidence</div>
+                            <div style="font-weight: 600; color: {confidence_color};">
+                                {confidence_score*100:.0f}% ({confidence_label})
+                            </div>
+                        </div>
+                        <div style="border-left: 1px solid #cbd5e1; padding-left: 1rem;">
+                            <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.25rem;">Reliability</div>
+                            <div style="font-weight: 600; color: {'#10b981' if reliability_flag else '#f59e0b'};">
+                                {reliability_icon} {reliability_text}
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 <div class="aqi-message">
                     {aqi_info['health_message']}
                 </div>
             </div>
             """
             st.markdown(aqi_html, unsafe_allow_html=True)
+            
+            # Display warnings if any
+            quality_issues = aqi_info.get('quality_issues', {})
+            warnings = quality_issues.get('warnings', [])
+            if warnings:
+                for warning in warnings:
+                    st.warning(f"⚠️ {warning}")
+            
+            # Disclaimer
+            st.info("ℹ️ **Disclaimer**: This is a visual estimation based on image analysis only. It does not replace certified AQI sensors and should not be used for legal or medical purposes.")
+            
+            # Feature contributions (optional expander)
+            with st.expander("📊 View Feature Contributions to AQI"):
+                contributions = aqi_info.get('feature_contributions', {})
+                st.markdown("**How each feature contributes to the AQI estimate:**")
+                col1, col2 = st.columns(2)
+                with col1:
+                    for feature, value in list(contributions.items())[:4]:
+                        st.metric(
+                            feature.replace('_', ' ').title(),
+                            f"{value:.1f}",
+                            help=f"Contribution of {feature} to AQI"
+                        )
+                with col2:
+                    for feature, value in list(contributions.items())[4:]:
+                        st.metric(
+                            feature.replace('_', ' ').title(),
+                            f"{value:.1f}",
+                            help=f"Contribution of {feature} to AQI"
+                        )
             
             # Main content area
             col1, col2 = st.columns([1, 1])
