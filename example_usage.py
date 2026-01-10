@@ -31,6 +31,15 @@ def example_image_analysis():
         
         print(f"\nFull Analysis Results:")
         print(f"  Overall Visibility: {result['visibility_score']:.2f}/100")
+        
+        # AQI Information
+        if 'aqi' in result:
+            aqi = result['aqi']
+            print(f"\n  🌍 Air Quality Index (AQI):")
+            print(f"    AQI Value: {aqi['aqi']}")
+            print(f"    Category: {aqi['category']}")
+            print(f"    Health Message: {aqi['health_message']}")
+        
         print(f"\n  Feature Scores:")
         for feature, score_val in result['feature_scores'].items():
             print(f"    {feature.capitalize()}: {score_val:.2f}/100")
@@ -70,6 +79,12 @@ def example_custom_weights():
     if image is not None:
         result = analyzer.analyze(image)
         print(f"\nVisibility Score (Custom Weights): {result['visibility_score']:.2f}/100")
+        
+        # AQI Information
+        if 'aqi' in result:
+            aqi = result['aqi']
+            print(f"\n🌍 Estimated AQI: {aqi['aqi']} ({aqi['category']})")
+        
         print(f"\nWeights Used:")
         for feature, weight in result['weights'].items():
             print(f"  {feature.capitalize()}: {weight:.2%}")
@@ -180,6 +195,44 @@ def example_individual_features():
         print(f"Error: Could not load image '{image_path}'")
 
 
+def example_aqi_estimation():
+    """Example: Estimate AQI from image analysis."""
+    print("\n" + "=" * 60)
+    print("Example 5: AQI Estimation")
+    print("=" * 60)
+    
+    # Replace with your image path
+    image_path = "sample_image.jpg"
+    image = cv2.imread(image_path)
+    
+    if image is not None:
+        analyzer = VisibilityAnalyzer()
+        result = analyzer.analyze(image)
+        
+        if 'aqi' in result:
+            aqi = result['aqi']
+            print(f"\n🌍 Air Quality Index (AQI) Estimation:")
+            print(f"  AQI Value: {aqi['aqi']}")
+            print(f"  Category: {aqi['category']}")
+            print(f"  Color Code: {aqi['color']}")
+            print(f"  Health Message: {aqi['health_message']}")
+            print(f"\n  Based on:")
+            print(f"    Visibility Score: {aqi['visibility_score']:.2f}/100")
+            print(f"    Haze Density: {aqi['haze_density']:.3f}")
+            
+            print(f"\n  AQI Categories:")
+            print(f"    0-50: Good (Green)")
+            print(f"    51-100: Moderate (Yellow)")
+            print(f"    101-150: Unhealthy for Sensitive Groups (Orange)")
+            print(f"    151-200: Unhealthy (Red)")
+            print(f"    201-300: Very Unhealthy (Purple)")
+            print(f"    301-500: Hazardous (Maroon)")
+        else:
+            print("AQI information not available in results.")
+    else:
+        print(f"Error: Could not load image '{image_path}'")
+
+
 def example_visualization():
     """Example: Create custom visualizations."""
     print("\n" + "=" * 60)
@@ -227,6 +280,7 @@ if __name__ == "__main__":
     # example_custom_weights()
     # example_video_analysis()
     # example_individual_features()
+    # example_aqi_estimation()
     # example_visualization()
     
     print("\n" + "=" * 60)

@@ -79,6 +79,11 @@ class VideoProcessor:
         # Extract visibility scores
         visibility_scores = [r['visibility_score'] for r in frame_results]
         
+        # Extract AQI values if available
+        aqi_values = []
+        if frame_results and 'aqi' in frame_results[0]:
+            aqi_values = [r['aqi']['aqi'] for r in frame_results]
+        
         # Temporal smoothing
         smoothed_scores = self._temporal_smooth(visibility_scores)
         
@@ -98,6 +103,16 @@ class VideoProcessor:
             'visibility_range': np.max(smoothed_scores) - np.min(smoothed_scores)
         }
         
+        # AQI statistics if available
+        aqi_stats = None
+        if aqi_values:
+            aqi_stats = {
+                'mean_aqi': np.mean(aqi_values),
+                'min_aqi': np.min(aqi_values),
+                'max_aqi': np.max(aqi_values),
+                'aqi_values': aqi_values
+            }
+        
         return {
             'frame_results': frame_results,
             'visibility_scores': visibility_scores,
@@ -112,6 +127,7 @@ class VideoProcessor:
                 'result': worst_frame_result
             },
             'statistics': stats,
+            'aqi_stats': aqi_stats,
             'fps': fps,
             'total_frames': total_frames,
             'processed_frames': len(frame_results)
