@@ -313,6 +313,9 @@ class StructuralAnalyzer:
         # Compute local variance
         local_var = cv2.filter2D((gray.astype(np.float32) - mean_local)**2, -1, kernel)
         
+        # Ensure non-negative and handle edge cases
+        local_var = np.maximum(local_var, 0)
+        
         return local_var
     
     @staticmethod
@@ -347,10 +350,18 @@ class StructuralAnalyzer:
         avg_texture_var = np.mean(texture_var_map)
         
         # Normalize texture variance (typical range: 0-1000, normalize to 0-1)
-        normalized_texture_var = min(avg_texture_var / 1000.0, 1.0)
+        # Handle edge case where variance is 0
+        if avg_texture_var > 0:
+            normalized_texture_var = min(avg_texture_var / 1000.0, 1.0)
+        else:
+            normalized_texture_var = 0.0
         
         # Normalize Laplacian variance (typical range: 0-10000, normalize to 0-1)
-        normalized_laplacian_var = min(laplacian_var / 10000.0, 1.0)
+        # Handle edge case where variance is 0
+        if laplacian_var > 0:
+            normalized_laplacian_var = min(laplacian_var / 10000.0, 1.0)
+        else:
+            normalized_laplacian_var = 0.0
         
         # Structural quality (higher = better)
         structural_quality = (normalized_texture_var * 0.5 + normalized_laplacian_var * 0.5)

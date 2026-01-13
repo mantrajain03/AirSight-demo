@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 import tempfile
 import os
+import time
 
 from airsight.core.visibility_analyzer import VisibilityAnalyzer
 from airsight.core.video_processor import VideoProcessor
@@ -200,8 +201,8 @@ st.sidebar.markdown("---")
 
 input_type = st.sidebar.radio(
     "**Input Type**",
-    ["Image", "Video"],
-    help="Select whether to analyze an image or video",
+    ["Image", "Video", "Live Camera"],
+    help="Select whether to analyze an image, video, or live camera feed",
     index=0
 )
 
@@ -621,6 +622,240 @@ else:  # Video
             
             # Cleanup
             os.unlink(tfile.name)
+
+elif input_type == "Live Camera":
+    st.markdown("### 📹 Live Camera Visibility & Air Quality Analysis")
+    
+    # Analysis settings
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### ⚙️ Analysis Settings")
+    show_metrics = st.sidebar.checkbox("Show Real-time Metrics", value=True)
+    max_history = st.sidebar.slider("Max History Points", min_value=10, max_value=200, value=100,
+                                   help="Maximum number of data points to keep in history")
+    
+    # Initialize session state
+    if 'latest_result' not in st.session_state:
+        st.session_state.latest_result = None
+    if 'history' not in st.session_state:
+        st.session_state.history = {
+            'visibility_scores': [],
+            'aqi_values': [],
+            'timestamps': []
+        }
+    if 'frame_count' not in st.session_state:
+        st.session_state.frame_count = 0
+    
+    # Use Streamlit's camera input
+    st.markdown("#### 📷 Capture Image from Camera")
+    camera_image = st.camera_input("Take a picture with your camera", 
+                                   help="Click the button to capture an image from your camera for analysis")
+    
+    if camera_image is not None:
+        # Convert PIL image to OpenCV format
+        image_array = np.array(camera_image)
+        # Convert RGB to BGR for OpenCV
+        image_bgr = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+        
+        # Analyze the captured image
+        with st.spinner("🔍 Analyzing visibility and estimating AQI..."):
+            try:
+                result = analyzer.analyze(image_bgr)
+                st.session_state.latest_result = result
+                st.session_state.frame_count += 1
+                
+                # Update history
+                current_time = time.time()
+                st.session_state.history['visibility_scores'].append(result['visibility_score'])
+                st.session_state.history['aqi_values'].append(result['aqi']['aqi'])
+                st.session_state.history['timestamps'].append(current_time)
+                
+                # Keep only last max_history readings
+                if len(st.session_state.history['visibility_scores']) > max_history:
+                    st.session_state.history['visibility_scores'].pop(0)
+                    st.session_state.history['aqi_values'].pop(0)
+                    st.session_state.history['timestamps'].pop(0)
+            except Exception as e:
+                st.error(f"❌ Error during analysis: {str(e)}")
+        
+        # Display results
+        if st.session_state.latest_result:
+            result = st.session_state.latest_result
+            aqi_info = result['aqi']
+            
+            # Display AQI prominently
+            st.markdown("---")
+            st.markdown("### 🌍 Air Quality Index (AQI) Estimation")
+            
+            aqi_color = aqi_info['color']
+            confidence_score = aqi_info.get('confidence_score', 0.8)
+            reliability_flag = aqi_info.get('reliability_flag', True)
+            
+            confidence_color = "#10b981" if confidence_score > 0.7 else "#f59e0b" if confidence_score > 0.5 else "#ef4444"
+            confidence_label = "High" if confidence_score > 0.7 else "Medium" if confidence_score > 0.5 else "Low"
+            reliability_icon = "✅" if reliability_flag else "⚠️"
+            reliability_text = "Reliable" if reliability_flag else "Low Reliability"
+            
+            aqi_html = f"""
+            <div class="aqi-card" style="border-color: {aqi_color};">
+                <div class="aqi-value" style="color: {aqi_color};">
+                    {aqi_info['aqi']}
+                </div>
+                <div class="aqi-category" style="color: {aqi_color};">
+                    {aqi_info['category']}
+                </div>
+                <div style="margin: 1rem 0; padding: 0.75rem; background: rgba(255,255,255,0.7); border-radius: 0.5rem;">
+                    <div style="display: flex; justify-content: space-around; align-items: center;">
+                        <div>
+                            <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.25rem;">Confidence</div>
+                            <div style="font-weight: 600; color: {confidence_color};">
+                                {confidence_score*100:.0f}% ({confidence_label})
+                            </div>
+                        </div>
+                        <div style="border-left: 1px solid #cbd5e1; padding-left: 1rem;">
+                            <div style="font-size: 0.85rem; color: #64748b; margin-bottom: 0.25rem;">Reliability</div>
+                            <div style="font-weight: 600; color: {'#10b981' if reliability_flag else '#f59e0b'};">
+                                {reliability_icon} {reliability_text}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="aqi-message">
+                    {aqi_info['health_message']}
+                </div>
+            </div>
+            """
+            st.markdown(aqi_html, unsafe_allow_html=True)
+            
+            # Display warnings if any
+            quality_issues = aqi_info.get('quality_issues', {})
+            warnings = quality_issues.get('warnings', [])
+            if warnings:
+                for warning in warnings:
+                    st.warning(f"⚠️ {warning}")
+            
+            # Display metrics
+            if show_metrics:
+                st.markdown("---")
+                st.markdown("#### 📊 Analysis Metrics")
+                col1, col2, col3, col4, col5 = st.columns(5)
+                with col1:
+                    st.metric("Visibility Score", f"{result['visibility_score']:.1f}/100")
+                with col2:
+                    st.metric("Contrast", f"{result['feature_scores']['contrast']:.1f}/100")
+                with col3:
+                    st.metric("Edge", f"{result['feature_scores']['edge']:.1f}/100")
+                with col4:
+                    st.metric("Color", f"{result['feature_scores']['color']:.1f}/100")
+                with col5:
+                    st.metric("Structure", f"{result['feature_scores']['structure']:.1f}/100")
+            
+            # Display history graph if we have enough data
+            if len(st.session_state.history['visibility_scores']) > 1:
+                st.markdown("---")
+                st.markdown("### 📈 Analysis History")
+                try:
+                    fig, axes = plt.subplots(2, 1, figsize=(12, 8))
+                    
+                    # Visibility over time
+                    times = [(t - st.session_state.history['timestamps'][0]) 
+                            for t in st.session_state.history['timestamps']]
+                    axes[0].plot(times, st.session_state.history['visibility_scores'], 
+                                'b-', linewidth=2, label='Visibility Score', marker='o', markersize=4)
+                    axes[0].set_xlabel('Time (seconds)', fontsize=12)
+                    axes[0].set_ylabel('Visibility Score', fontsize=12)
+                    axes[0].set_title('Visibility Score Over Time', fontsize=14, fontweight='bold')
+                    axes[0].set_ylim(0, 100)
+                    axes[0].grid(True, alpha=0.3)
+                    axes[0].legend()
+                    
+                    # AQI over time
+                    axes[1].plot(times, st.session_state.history['aqi_values'], 
+                                'r-', linewidth=2, label='AQI', alpha=0.7, marker='s', markersize=4)
+                    axes[1].axhline(y=50, color='green', linestyle='--', alpha=0.5, label='Good (50)')
+                    axes[1].axhline(y=100, color='yellow', linestyle='--', alpha=0.5, label='Moderate (100)')
+                    axes[1].axhline(y=150, color='orange', linestyle='--', alpha=0.5, label='Unhealthy for Sensitive (150)')
+                    axes[1].set_xlabel('Time (seconds)', fontsize=12)
+                    axes[1].set_ylabel('AQI', fontsize=12)
+                    axes[1].set_title('Air Quality Index Over Time', fontsize=14, fontweight='bold')
+                    axes[1].set_ylim(0, 500)
+                    axes[1].grid(True, alpha=0.3)
+                    axes[1].legend()
+                    
+                    plt.tight_layout()
+                    st.pyplot(fig)
+                    plt.close(fig)
+                except Exception as e:
+                    st.warning(f"⚠️ Could not display history graph: {str(e)}")
+            
+            # Clear history button
+            if st.button("🗑️ Clear History", use_container_width=True):
+                st.session_state.history = {
+                    'visibility_scores': [],
+                    'aqi_values': [],
+                    'timestamps': []
+                }
+                st.session_state.frame_count = 0
+                st.rerun()
+    
+    else:
+        st.info("👆 Use the camera button above to capture an image for analysis")
+        
+        # Show instructions
+        with st.expander("📖 How to use Live Camera"):
+            st.markdown("""
+            **Live Camera Analysis Instructions:**
+            
+            1. **Click the camera button** - This will activate your webcam
+            2. **Position your camera** - Point it at the scene you want to analyze
+            3. **Capture image** - Click the capture button to take a snapshot
+            4. **View results** - The analysis will appear automatically
+            5. **Track history** - Multiple captures create a history graph showing trends
+            
+            **Tips:**
+            - Point camera at outdoor scenes for best AQI estimation
+            - Ensure good lighting for accurate analysis
+            - Take multiple captures over time to see trends
+            - History is automatically limited to the configured maximum
+            - Each capture is analyzed independently
+            
+            **Note:** This uses Streamlit's camera input which requires browser permissions.
+            """)
+    
+    # Show current history stats
+    if len(st.session_state.history['visibility_scores']) > 0:
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### 📊 History Stats")
+        st.sidebar.metric("Total Captures", st.session_state.frame_count)
+        if len(st.session_state.history['visibility_scores']) > 0:
+            avg_visibility = np.mean(st.session_state.history['visibility_scores'])
+            avg_aqi = np.mean(st.session_state.history['aqi_values'])
+            st.sidebar.metric("Avg Visibility", f"{avg_visibility:.1f}")
+            st.sidebar.metric("Avg AQI", f"{avg_aqi:.0f}")
+    
+    else:
+        st.info("👆 Click 'Start Camera' to begin live analysis")
+        
+        # Show instructions
+        with st.expander("📖 How to use Live Camera"):
+            st.markdown("""
+            **Live Camera Analysis Instructions:**
+            
+            1. **Connect your camera** - Make sure your webcam or external camera is connected
+            2. **Select camera index** - Use 0 for default camera, or try 1, 2, etc. if you have multiple cameras
+            3. **Click 'Start Camera'** - Begin live analysis
+            4. **Adjust settings** - Use the sidebar to configure:
+               - Analysis interval: Process every Nth frame (higher = faster but less frequent updates)
+               - Show live feed: Display the camera feed with overlaid metrics
+               - Show real-time metrics: Display current visibility and AQI values
+            5. **Monitor graphs** - Real-time graphs show visibility and AQI trends over time
+            6. **Stop when done** - Click 'Stop Camera' to end the session
+            
+            **Tips:**
+            - Point camera at outdoor scenes for best AQI estimation
+            - Ensure good lighting for accurate analysis
+            - Higher analysis intervals reduce CPU usage
+            - History is automatically limited to last 100 readings
+            """)
 
 # Footer
 st.markdown("---")

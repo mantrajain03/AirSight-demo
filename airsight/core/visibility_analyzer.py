@@ -207,36 +207,61 @@ class VisibilityAnalyzer:
         structure_decay = degradation_scores.get('structure', 0.4)
         
         # Multi-feature AQI estimation (regression-like approach)
-        # Base AQI from visibility (inverse relationship)
-        base_aqi = 500 * (1.0 - visibility_index)
+        # Base AQI from visibility (inverse relationship with non-linear scaling)
+        # Use exponential scaling for better sensitivity at high pollution levels
+        visibility_factor = 1.0 - visibility_index
+        base_aqi = 500 * (visibility_factor ** 1.2)  # Non-linear scaling
         
         # Dark Channel Prior contribution (strongest indicator)
-        dcp_contribution = dcp_score * 200  # Can contribute up to 200 AQI points
+        # Enhanced with saturation consideration (high saturation + high DCP = pollution)
+        saturation_factor = 1.0 + (1.0 - saturation_mean) * 0.3  # Low saturation = more haze
+        dcp_contribution = dcp_score * 200 * saturation_factor
         
-        # Contrast loss contribution
-        contrast_contribution = contrast_loss * 100
+        # Contrast loss contribution (enhanced)
+        # Combine contrast loss with entropy for better accuracy
+        contrast_factor = contrast_loss * (1.0 + (1.0 - contrast_entropy) * 0.5)
+        contrast_contribution = contrast_factor * 100
         
         # Edge density contribution (low edge density = more pollution)
-        edge_contribution = (1.0 - edge_density) * 80
+        # Enhanced with edge strength consideration
+        edge_strength = raw_features.get('edge', {}).get('edge_strength_score', 0.5)
+        edge_factor = (1.0 - edge_density) * (1.0 + (1.0 - edge_strength) * 0.3)
+        edge_contribution = edge_factor * 80
         
         # HSV brightness contribution (high brightness with low contrast = haze)
-        brightness_factor = brightness * (1.0 - contrast_entropy) * 60
+        # Enhanced brightness factor with value channel analysis
+        value_factor = value_mean / 255.0 if value_mean > 0 else 0.5
+        brightness_factor = brightness * (1.0 - contrast_entropy) * value_factor * 60
         
-        # Color degradation contribution
-        color_contribution = color_degradation * 70
+        # Color degradation contribution (enhanced)
+        # Color shift toward blue/gray indicates pollution
+        channel_means = raw_features.get('color', {}).get('channel_means', {})
+        if channel_means:
+            b_mean = channel_means.get('b', 128) / 255.0
+            r_mean = channel_means.get('r', 128) / 255.0
+            # Blue shift (b > r) indicates haze
+            blue_shift = max(0, (b_mean - r_mean)) * 0.5
+            color_factor = color_degradation * (1.0 + blue_shift)
+        else:
+            color_factor = color_degradation
+        color_contribution = color_factor * 70
         
-        # Structural decay contribution
-        structure_contribution = structure_decay * 50
+        # Structural decay contribution (enhanced)
+        # Combine with texture variance for better accuracy
+        texture_var = raw_features.get('structure', {}).get('texture_variance', 500)
+        texture_factor = min(texture_var / 1000.0, 1.0)  # Normalize
+        structure_factor = structure_decay * (1.0 + (1.0 - texture_factor) * 0.4)
+        structure_contribution = structure_factor * 50
         
         # Weighted combination (emphasizing DCP and visibility)
         estimated_aqi = (
-            base_aqi * 0.25 +           # Visibility index: 25%
-            dcp_contribution * 0.30 +   # Dark Channel Prior: 30% (strongest)
-            contrast_contribution * 0.15 +  # Contrast: 15%
+            base_aqi * 0.28 +           # Visibility index: 28% (increased)
+            dcp_contribution * 0.32 +   # Dark Channel Prior: 32% (strongest, increased)
+            contrast_contribution * 0.16 +  # Contrast: 16% (increased)
             edge_contribution * 0.10 +   # Edge density: 10%
-            brightness_factor * 0.08 +   # Brightness factor: 8%
-            color_contribution * 0.07 +  # Color: 7%
-            structure_contribution * 0.05  # Structure: 5%
+            brightness_factor * 0.07 +   # Brightness factor: 7% (decreased)
+            color_contribution * 0.05 +  # Color: 5% (decreased)
+            structure_contribution * 0.02  # Structure: 2% (decreased)
         )
         
         # Clamp to valid AQI range (0-500)
@@ -253,7 +278,16 @@ class VisibilityAnalyzer:
             1.0 - structure_decay
         ]
         feature_std = np.std(feature_scores)
-        confidence_score = max(0.5, 1.0 - feature_std)  # Lower std = higher confidence
+        feature_mean = np.mean(feature_scores)
+        
+        # Confidence based on consistency (lower std = higher confidence)
+        consistency_score = max(0.3, 1.0 - feature_std * 1.5)
+        
+        # Confidence based on feature quality (higher mean = more reliable)
+        quality_score = feature_mean
+        
+        # Combined confidence (weighted average)
+        confidence_score = (consistency_score * 0.6 + quality_score * 0.4)
         
         # Adjust confidence based on reliability issues
         confidence_score *= quality_issues['reliability_score']

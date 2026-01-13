@@ -231,17 +231,31 @@ class Visualizer:
         # Texture variance map
         ax6 = fig.add_subplot(gs[1, 2])
         texture_map = analysis_result['feature_maps']['texture_variance']
-        texture_norm = (texture_map / texture_map.max() * 255).astype(np.uint8)
+        texture_max = texture_map.max()
+        if texture_max > 0:
+            texture_norm = (texture_map / texture_max * 255).astype(np.uint8)
+        else:
+            texture_norm = np.zeros_like(texture_map, dtype=np.uint8)
         texture_colored = cv2.applyColorMap(texture_norm, cv2.COLORMAP_VIRIDIS)
         ax6.imshow(cv2.cvtColor(texture_colored, cv2.COLOR_BGR2RGB))
         ax6.set_title('Texture Variance Map', fontsize=12, fontweight='bold')
         ax6.axis('off')
         
-        # Histogram
+        # Histogram - create properly in the subplot
         ax7 = fig.add_subplot(gs[2, :])
-        Visualizer.plot_histogram_comparison(image, title="")
-        ax7 = fig.gca()
-        ax7.set_title('RGB and Grayscale Histograms', fontsize=12, fontweight='bold')
+        # RGB histograms
+        colors = ('b', 'g', 'r')
+        channel_names = ('Blue', 'Green', 'Red')
+        
+        for i, (color, name) in enumerate(zip(colors, channel_names)):
+            hist = cv2.calcHist([image], [i], None, [256], [0, 256])
+            ax7.plot(hist, color=color, label=name, alpha=0.7, linewidth=1.5)
+        
+        ax7.set_title('RGB Channel Histograms', fontsize=12, fontweight='bold')
+        ax7.set_xlabel('Pixel Intensity', fontsize=10)
+        ax7.set_ylabel('Frequency', fontsize=10)
+        ax7.legend()
+        ax7.grid(True, alpha=0.3)
         
         plt.suptitle('AirSight Visibility Analysis Dashboard', 
                     fontsize=16, fontweight='bold', y=0.995)
@@ -267,15 +281,38 @@ class Visualizer:
         
         # Temporal visibility graph
         ax1 = axes[0, 0]
-        Visualizer.plot_visibility_temporal(
-            video_result['frame_times'],
-            video_result['visibility_scores'],
-            video_result['smoothed_scores'],
-            video_result['clarity_drops'],
-            title=""
-        )
-        ax1 = fig.gca()
+        frame_times = video_result['frame_times']
+        visibility_scores = video_result['visibility_scores']
+        smoothed_scores = video_result.get('smoothed_scores', visibility_scores)
+        clarity_drops = video_result.get('clarity_drops', [])
+        
+        # Plot raw scores
+        ax1.plot(frame_times, visibility_scores, 'b-', alpha=0.3, 
+                label='Raw Visibility', linewidth=1)
+        
+        # Plot smoothed scores
+        if smoothed_scores and len(smoothed_scores) == len(frame_times):
+            ax1.plot(frame_times, smoothed_scores, 'r-', 
+                   label='Smoothed Visibility', linewidth=2)
+        
+        # Mark clarity drops
+        if clarity_drops:
+            for drop in clarity_drops:
+                idx = drop.get('index', 0)
+                if idx < len(frame_times):
+                    ax1.axvline(x=frame_times[idx], color='orange', 
+                             linestyle='--', alpha=0.7, linewidth=1)
+                    if 'drop_magnitude' in drop:
+                        ax1.text(frame_times[idx], ax1.get_ylim()[1] * 0.95,
+                               f"Drop: {drop['drop_magnitude']:.1f}",
+                               rotation=90, ha='right', va='top', fontsize=8)
+        
+        ax1.set_xlabel('Time (seconds)', fontsize=10)
+        ax1.set_ylabel('Visibility Score', fontsize=10)
         ax1.set_title('Visibility Over Time', fontsize=12, fontweight='bold')
+        ax1.legend(fontsize=9)
+        ax1.grid(True, alpha=0.3)
+        ax1.set_ylim(0, 100)
         
         # Statistics
         ax2 = axes[0, 1]
@@ -304,31 +341,56 @@ class Visualizer:
         
         # Visibility distribution
         ax3 = axes[1, 0]
-        ax3.hist(video_result['smoothed_scores'], bins=30, 
-                color='skyblue', edgecolor='black', alpha=0.7)
-        ax3.axvline(stats['mean_visibility'], color='red', 
-                   linestyle='--', linewidth=2, label=f"Mean: {stats['mean_visibility']:.2f}")
-        ax3.set_xlabel('Visibility Score')
-        ax3.set_ylabel('Frequency')
-        ax3.set_title('Visibility Score Distribution', fontsize=12, fontweight='bold')
-        ax3.legend()
-        ax3.grid(True, alpha=0.3)
+        smoothed_scores = video_result.get('smoothed_scores', video_result.get('visibility_scores', []))
+        if len(smoothed_scores) > 0:
+            ax3.hist(smoothed_scores, bins=min(30, len(smoothed_scores)), 
+                    color='skyblue', edgecolor='black', alpha=0.7)
+            ax3.axvline(stats['mean_visibility'], color='red', 
+                       linestyle='--', linewidth=2, label=f"Mean: {stats['mean_visibility']:.2f}")
+            ax3.set_xlabel('Visibility Score', fontsize=10)
+            ax3.set_ylabel('Frequency', fontsize=10)
+            ax3.set_title('Visibility Score Distribution', fontsize=12, fontweight='bold')
+            ax3.legend(fontsize=9)
+            ax3.grid(True, alpha=0.3)
+        else:
+            ax3.text(0.5, 0.5, 'No visibility scores available', 
+                    ha='center', va='center', transform=ax3.transAxes)
+            ax3.axis('off')
         
         # Feature scores over time (if available)
         ax4 = axes[1, 1]
-        if video_result['frame_results']:
+        if video_result.get('frame_results') and len(video_result['frame_results']) > 0:
             # Plot average feature scores
-            feature_names = list(video_result['frame_results'][0]['feature_scores'].keys())
-            for feature in feature_names:
-                scores = [r['feature_scores'][feature] for r in video_result['frame_results']]
-                ax4.plot(video_result['frame_times'], scores, 
-                        label=feature.capitalize(), alpha=0.7, linewidth=1.5)
-            ax4.set_xlabel('Time (seconds)')
-            ax4.set_ylabel('Feature Score')
-            ax4.set_title('Feature Scores Over Time', fontsize=12, fontweight='bold')
-            ax4.legend()
-            ax4.grid(True, alpha=0.3)
-            ax4.set_ylim(0, 100)
+            first_result = video_result['frame_results'][0]
+            if 'feature_scores' in first_result:
+                feature_names = list(first_result['feature_scores'].keys())
+                frame_times = video_result['frame_times']
+                
+                # Use different colors for each feature
+                colors = ['#2ecc71', '#3498db', '#e74c3c', '#f39c12', '#9b59b6']
+                
+                for i, feature in enumerate(feature_names):
+                    scores = [r.get('feature_scores', {}).get(feature, 0) 
+                             for r in video_result['frame_results']]
+                    if len(scores) == len(frame_times):
+                        ax4.plot(frame_times, scores, 
+                                label=feature.capitalize(), alpha=0.7, linewidth=1.5,
+                                color=colors[i % len(colors)])
+                
+                ax4.set_xlabel('Time (seconds)', fontsize=10)
+                ax4.set_ylabel('Feature Score', fontsize=10)
+                ax4.set_title('Feature Scores Over Time', fontsize=12, fontweight='bold')
+                ax4.legend(fontsize=8, loc='best')
+                ax4.grid(True, alpha=0.3)
+                ax4.set_ylim(0, 100)
+            else:
+                ax4.text(0.5, 0.5, 'No feature scores available', 
+                        ha='center', va='center', transform=ax4.transAxes)
+                ax4.axis('off')
+        else:
+            ax4.text(0.5, 0.5, 'No frame results available', 
+                    ha='center', va='center', transform=ax4.transAxes)
+            ax4.axis('off')
         
         plt.suptitle('AirSight Video Analysis Summary', 
                     fontsize=16, fontweight='bold', y=0.995)

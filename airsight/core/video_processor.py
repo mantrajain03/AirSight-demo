@@ -59,18 +59,23 @@ class VideoProcessor:
                 break
             
             if frame_idx % sample_rate == 0:
-                # Analyze frame
-                result = self.analyzer.analyze(frame)
-                result['frame_index'] = frame_idx
-                result['frame_time'] = frame_idx / fps if fps > 0 else frame_idx
-                
-                frame_results.append(result)
-                frame_times.append(result['frame_time'])
-                frame_indices.append(frame_idx)
-                
-                processed_count += 1
-                if max_frames and processed_count >= max_frames:
-                    break
+                try:
+                    # Analyze frame
+                    result = self.analyzer.analyze(frame)
+                    result['frame_index'] = frame_idx
+                    result['frame_time'] = frame_idx / fps if fps > 0 else frame_idx
+                    
+                    frame_results.append(result)
+                    frame_times.append(result['frame_time'])
+                    frame_indices.append(frame_idx)
+                    
+                    processed_count += 1
+                    if max_frames and processed_count >= max_frames:
+                        break
+                except Exception as e:
+                    # Skip frames that fail to analyze
+                    print(f"Warning: Failed to analyze frame {frame_idx}: {str(e)}")
+                    continue
             
             frame_idx += 1
         
