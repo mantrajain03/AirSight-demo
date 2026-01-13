@@ -678,26 +678,26 @@ elif input_type == "Live Camera":
             with st.spinner("🔍 Analyzing visibility and estimating AQI..."):
                 try:
                     result = analyzer.analyze(image_bgr)
-                st.session_state.latest_result = result
-                st.session_state.frame_count += 1
-                
-                # Update history
-                current_time = time.time()
-                st.session_state.history['visibility_scores'].append(result['visibility_score'])
-                st.session_state.history['aqi_values'].append(result['aqi']['aqi'])
-                st.session_state.history['timestamps'].append(current_time)
-                
-                # Keep only last max_history readings
-                if len(st.session_state.history['visibility_scores']) > max_history:
-                    st.session_state.history['visibility_scores'].pop(0)
-                    st.session_state.history['aqi_values'].pop(0)
-                    st.session_state.history['timestamps'].pop(0)
-            except Exception as e:
-                st.error(f"❌ Error during analysis: {str(e)}")
+                    st.session_state.latest_result = result
+                    st.session_state.frame_count += 1
+                    
+                    # Update history
+                    current_time = time.time()
+                    st.session_state.history['visibility_scores'].append(result['visibility_score'])
+                    st.session_state.history['aqi_values'].append(result['aqi']['aqi'])
+                    st.session_state.history['timestamps'].append(current_time)
+                    
+                    # Keep only last max_history readings
+                    if len(st.session_state.history['visibility_scores']) > max_history:
+                        st.session_state.history['visibility_scores'].pop(0)
+                        st.session_state.history['aqi_values'].pop(0)
+                        st.session_state.history['timestamps'].pop(0)
+                except Exception as e:
+                    st.error(f"❌ Error during analysis: {str(e)}")
             
             # Display results
             if st.session_state.latest_result:
-            result = st.session_state.latest_result
+                result = st.session_state.latest_result
             aqi_info = result['aqi']
             
             # Display AQI prominently
