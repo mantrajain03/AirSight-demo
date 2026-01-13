@@ -475,7 +475,7 @@ if input_type == "Image":
                     "Category": aqi_info['category']
                 })
 
-else:  # Video
+elif input_type == "Video":
     st.markdown("### 🎥 Video Visibility Analysis")
     
     uploaded_file = st.file_uploader(
