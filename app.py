@@ -653,13 +653,31 @@ elif input_type == "Live Camera":
     if camera_image is not None:
         # Convert PIL image to OpenCV format
         image_array = np.array(camera_image)
-        # Convert RGB to BGR for OpenCV
-        image_bgr = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
         
-        # Analyze the captured image
-        with st.spinner("🔍 Analyzing visibility and estimating AQI..."):
-            try:
-                result = analyzer.analyze(image_bgr)
+        # Handle different image formats
+        if len(image_array.shape) == 2:
+            # Grayscale image - convert to BGR
+            image_bgr = cv2.cvtColor(image_array, cv2.COLOR_GRAY2BGR)
+        elif len(image_array.shape) == 3:
+            if image_array.shape[2] == 4:
+                # RGBA image - convert to RGB first, then BGR
+                image_rgb = cv2.cvtColor(image_array, cv2.COLOR_RGBA2RGB)
+                image_bgr = cv2.cvtColor(image_rgb, cv2.COLOR_RGB2BGR)
+            elif image_array.shape[2] == 3:
+                # RGB image - convert to BGR
+                image_bgr = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+            else:
+                st.error(f"❌ Unsupported image format with {image_array.shape[2]} channels")
+                image_bgr = None
+        else:
+            st.error(f"❌ Unsupported image shape: {image_array.shape}")
+            image_bgr = None
+        
+        if image_bgr is not None:
+            # Analyze the captured image
+            with st.spinner("🔍 Analyzing visibility and estimating AQI..."):
+                try:
+                    result = analyzer.analyze(image_bgr)
                 st.session_state.latest_result = result
                 st.session_state.frame_count += 1
                 
@@ -676,9 +694,9 @@ elif input_type == "Live Camera":
                     st.session_state.history['timestamps'].pop(0)
             except Exception as e:
                 st.error(f"❌ Error during analysis: {str(e)}")
-        
-        # Display results
-        if st.session_state.latest_result:
+            
+            # Display results
+            if st.session_state.latest_result:
             result = st.session_state.latest_result
             aqi_info = result['aqi']
             
