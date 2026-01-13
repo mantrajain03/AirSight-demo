@@ -52,4 +52,3 @@ This is a visual estimation only and does not replace certified AQI sensors. Not
 4. After the web interface is up and running, upload the sample image in \Sample Image\ directory to test the project.
 5. Alternatively, you may upload any image and use the project to analyze it.
 
-For detailed documentation, see the full README.md file.
